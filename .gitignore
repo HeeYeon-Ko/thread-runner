@@ -1,0 +1,8 @@
+# --- 빌드 결과물 (Maven) ---
+target/
+
+# --- 이클립스 (IDE) 설정 파일 ---
+.settings/
+.project
+.classpath
+bin/
