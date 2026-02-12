@@ -1,156 +1,164 @@
 package thread_runner;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class ProgressBarManager {
 
-	private final ConsoleTerminal terminal;
-	
-	// 플레이어 정보 관련 변수
-	private int[] playerProgress;
-	private boolean[] isPlayerPressing; 	// 플레이어별 대기 상태 저장
-	private int rankCounter = 1; 		// 순위 카운터
-	private String rankResult = ""; 	// 순위 결과 출력문 저장용
-	
-	// 레드팀 관련 변수
-	private int[] redTeamAtSpot = {1,2,3,4};
-	private final Object redTeamLock = new Object();
+    private final ConsoleTerminal terminal;
+    
+    private int[] playerProgress;
+    private int rankCounter = 1;
+    private boolean[] isPlayerPressing; 
+    private String[] rankDisplay;      
+    
+    private int[] redTeamAtSpot = {1, 2, 3, 4};
+    private final Object redTeamLock = new Object();
+    
+    private int[] blueTeamAtSpot = {1, 2, 3, 4};
+    private final Object blueTeamLock = new Object();
+    
+    private volatile Boolean isBlueTeamWin = null;
+    private final AtomicBoolean isRunning = new AtomicBoolean(true);
+    private Thread renderThread;
+    
+    private int[] lastProgress;
+    private final int LOGO_HEIGHT = 10;
 
-	// 블루팀 관련 변수
-	private int[] blueTeamAtSpot = {1,2,3,4};	
-	private final Object blueTeamLock = new Object();
+    public ProgressBarManager(ConsoleTerminal terminal) {
+        this.terminal = terminal;
+        this.playerProgress = new int[getPlayerCount()];
+        this.lastProgress = new int[getPlayerCount()];
+        for(int i=0; i<getPlayerCount(); i++) lastProgress[i] = -1;
+        this.isPlayerPressing = new boolean[getPlayerCount()];
+        this.rankDisplay = new String[getPlayerCount()];
 
-	// 최종 승리팀
-	private Boolean isBlueTeamWin = null;
+        // 초기화 시 화면 정리
+        terminal.print("\033[2J\033[H\033[?25l");
+        for (int i = 0; i < 20; i++) terminal.println("");
+        terminal.print("\033[2J\033[H\033[?25l");
+        terminal.print(terminal.getLogo());
+        startRenderThread();
+    }
 
-	// 생성자
-	public ProgressBarManager(ConsoleTerminal terminal) {
-		this.terminal = terminal;
-		playerProgress = new int[getPlayerCount()];
-		isPlayerPressing = new boolean[getPlayerCount()];
-	}
-	
-	public void update(int playerIndex, int percent) {
-		update(playerIndex, percent, false);
-	}
+    private void startRenderThread() {
+        renderThread = new Thread(() -> {
+            while (isRunning.get()) {
+                try {
+                    render();
+                    Thread.sleep(100); 
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        renderThread.setDaemon(true); 
+        renderThread.start();
+    }
 
-	public synchronized void update(int playerIndex, int percent, boolean isPressing) {
-		
-		// 1등으로 도착한 팀이 어느 팀인지 결정하는 if문
-		if (playerProgress[playerIndex] != 0 && percent == 100) {
-			if (isBlueTeamWin == null) {	// 아무도 도착한 사람이 없다면, 내가 속한 팀이 우승
-				isBlueTeamWin = isBlueTeam(playerIndex);
-			}
-		}
-		
-		playerProgress[playerIndex] = percent;
-		isPlayerPressing[playerIndex] = isPressing;
-		render();
-	}
+    private synchronized void render() {
+        for (int i = 0; i < getPlayerCount(); i++) {
+            if (playerProgress[i] != lastProgress[i]) {
+                // 1. 해당 플레이어의 행 위치 계산 (로고 높이 + 여백 + 인덱스)
+                int row = LOGO_HEIGHT + i + (i >= getPlayerCount() / 2 ? 2 : 1); 
+                
+                // 2. ANSI 이스케이프 코드로 커서 점프: \033[행;열H
+                terminal.print("\033[" + row + ";1H"); 
 
-	private boolean isBlueTeam(int playerIndex) {
-		return playerIndex < getPlayerCount() / 2;
-	}
+                // 3. 내용 출력 및 줄 끝 잔상 제거 (\u001B[K)
+                String color = isPlayerPressing[i] ? ColorCode.lime : (isBlueTeam(i) ? ColorCode.blue : ColorCode.red);
+                String bar = formatBar(Main.playerNames.get(i), playerProgress[i], color);
+                String rank = (rankDisplay[i] != null) ? rankDisplay[i] : "";
+                
+                terminal.print(bar + rank + "\u001B[K");
+                
+                // 4. 현재 상태 기록
+                lastProgress[i] = playerProgress[i];
+            }
+        }
+        terminal.flush();
+    }
 
-	// 작업 완료 시 호출되는 메서드
-	public synchronized void completeTask(String threadName, int index) {
-		int currentRank = rankCounter++;
-		// 결과 문자열을 쌓아둠 (render 시 바 아래에 표시하기 위함)
-		rankResult += String.format("\n" + terminal.header + "[순위] %d등: ", currentRank);
-		rankResult += isBlueTeam(index)
-				? ColorCode.blue + threadName + ColorCode.reset
-				: ColorCode.red  + threadName + ColorCode.reset;
-	}
+    private String formatBar(String name, int percent, String color) {
+        int width = 45; 
+        int filled = (int) (width * (percent / 100.0));
+        
+        // 프로그레스바 그리기
+        StringBuilder sb = new StringBuilder();
+        sb.append(terminal.header);
+        sb.append(String.format(" %s: [", name));
+        sb.append(color);
+        for (int i = 0; i < width; i++) {
+            if (i < filled) sb.append("■");
+            else sb.append(" ");
+        }
+        sb.append(ColorCode.reset).append("] ").append(String.format("%3d%%", percent));
+        
+        return sb.toString();
+    }
 
-	private void render() {
-		String[] playerBar = new String[getPlayerCount()];
-		for (int i = 0; i < playerBar.length; i++) {
-			String color = i*2 >= playerBar.length ? ColorCode.red : ColorCode.blue;
-			if (isPlayerPressing[i]) {
-				color = ColorCode.lime;	// 대기지점에서 대기중이면 라임색
-			}
-			if (i == 3)
-				playerBar[i] = formatBar(Main.playerNames.get(i), playerProgress[i], color) 
-				+ "\n" + terminal.header;
-			else
-				playerBar[i] = formatBar(Main.playerNames.get(i), playerProgress[i], color);
-		}
+    public synchronized void update(int playerIndex, int percent) {
+        update(playerIndex, percent, false);
+    }
 
-		// 현재 바 상태 출력 + 그 아래에 저장된 순위 결과들을 붙여서 출력
-		StringBuilder sb = new StringBuilder();
-		sb.append("\r");
-		for (String bar : playerBar) {
-			sb.append(terminal.header).append(bar).append("\n");
-		}
-		sb.deleteCharAt(sb.length() - 1).append(rankResult);
-		terminal.print(sb.toString());
+    public synchronized void update(int playerIndex, int percent, boolean isPressing) {
+    	// 1등으로 들어오는 쓰레드 팀이 승리
+        if (playerProgress[playerIndex] != 0 && percent == 100) {
+            if (isBlueTeamWin == null) isBlueTeamWin = isBlueTeam(playerIndex);
+        }
+        playerProgress[playerIndex] = percent;
+        isPlayerPressing[playerIndex] = isPressing;
+    }
 
-		// 출력한 줄 수만큼 커서를 다시 위로 올려야 함
-		// 기본 선수 인원수 + 순위가 추가된 만큼(rankCounter - 1) 위로 이동
-		int linesToMoveUp = getPlayerCount() + (rankCounter - 1);
+    public synchronized void completeTask(String threadName, int index) {
+        int currentRank = rankCounter++;
+        String teamColor = isBlueTeam(index) ? ColorCode.blue : ColorCode.red;
+        rankDisplay[index] = String.format("  %s%d등%s", teamColor, currentRank, ColorCode.reset);
+        
+        // 포디움은 메달 추가
+        if (currentRank == 1) {
+        	rankDisplay[index] += "🥇" ;
+        } else if (currentRank == 2) {
+        	rankDisplay[index] += "🥈" ;
+        } else if (currentRank == 3) {
+        	rankDisplay[index] += "🥉" ;
+        }
+    }
 
-		if (linesToMoveUp > 0) {
-			terminal.print("\u001B[" + linesToMoveUp + "A\r");
-		} else {
-			terminal.print("\r");
-		}
+    private boolean isBlueTeam(int playerIndex) {
+        return playerIndex < getPlayerCount() / 2;
+    }
 
-		terminal.flush();
-	}
+    private int getPlayerCount() {
+        return Main.playerCount;
+    }
 
-	private String formatBar(String threadName, int percent, String color) {
-		int width = 80;
-		int filled = percent * width / 100;
-		StringBuilder sb = new StringBuilder(threadName + ": [");
-		for (int i = 0; i < width; i++) {
-			if (i < filled)
-				sb.append(color + "■" + ColorCode.reset);
-			else
-				sb.append(" ");
-		}
-		sb.append("] " + percent + "%");
-		return sb.toString();
-	}
-	
-	public void waitForTeam(int threadIndex, int spot) throws InterruptedException {
-		boolean isBlue = isBlueTeam(threadIndex);
-	    Object lock = isBlue ? blueTeamLock : redTeamLock;
-	    int[] waitCount = isBlue ? blueTeamAtSpot : redTeamAtSpot;
+    public void waitForTeam(int threadIndex, int spot) throws InterruptedException {
+        boolean isBlue = isBlueTeam(threadIndex);
+        Object lock = isBlue ? blueTeamLock : redTeamLock;
+        int[] waitCount = isBlue ? blueTeamAtSpot : redTeamAtSpot;
 
-	    synchronized (lock) {
-	        waitCount[spot]--; // 내가 도착했으므로 카운트 감소
+        synchronized (lock) {
+            waitCount[spot]--; 	// 내가 도착했으므로 카운트 감소
 
-	        if (waitCount[spot] > 0) {
-	            // 아직 팀원이 더 와야 함 (그냥 대기)
-	            update(threadIndex, playerProgress[threadIndex], true); // 라임색 적용
-	            lock.wait();
-	        } else if (waitCount[spot] == 0) {
-	            // 내가 마지막 인원! 문을 여는 주인공 (라임색)
-	            update(threadIndex, playerProgress[threadIndex], true); // 라임색 적용
-	            
-	            // 문 열리는 시간 2초 대기
-	            Thread.sleep(2000);
-	            lock.notifyAll(); // 대기하던 팀원들 깨우기
-	        }
-	    }
-	}
+            if (waitCount[spot] > 0) {	// 팀원을 기다려야 하는 경우 대기
+                update(threadIndex, playerProgress[threadIndex], true);
+                lock.wait();
+            } else if (waitCount[spot] == 0) { // 문을 열 마지막 팀원인 경우
+                update(threadIndex, playerProgress[threadIndex], true);
+                Thread.sleep(2000);	// 문 열리는 시간(2초) 대기 후 쓰레드 모두 깨우기
+                lock.notifyAll();
+            }
+        }
+    }
 
-	public synchronized boolean cleanUpAndgetGameResult() {
-		// 1. 마지막 상태를 확실히 그리기 위해 한 번 더 호출
-		render();
+    public synchronized boolean cleanUpAndgetGameResult() {
+        isRunning.set(false);
+        try {
+            if (renderThread != null) renderThread.join(100);
+        } catch (InterruptedException e) { e.printStackTrace(); }
 
-		// 2. 현재 커서는 \u001B[nA에 의해 맨 윗줄 근처에 가 있습니다.
-		// 따라서 전체 출력된 줄 수만큼 '엔터'를 쳐서 아래로 내려가야 합니다.
-		// 줄 수 = 플레이어 수 + 순위 결과 줄 수 (rankCounter - 1)
-		int totalLinesShown = getPlayerCount() + rankCounter;
-
-		// 3. 넉넉하게 줄을 띄워 메이븐 로그가 침범하지 못하게 합니다.
-		for (int i = 0; i < totalLinesShown; i++) {
-			terminal.println();
-		}
-		
-		return isBlueTeamWin;
-	}
-
-	private int getPlayerCount() {
-		return Main.playerCount;
-	}
+        render();
+        terminal.print("\033[20;1H\033[?25h");
+        return isBlueTeamWin != null ? isBlueTeamWin : false;	// 승리팀 정보 리턴
+    }
 }
