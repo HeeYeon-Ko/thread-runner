@@ -20,16 +20,23 @@ public class ProgressBarManager {
     private volatile Boolean isBlueTeamWin = null;
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
     private Thread renderThread;
+    
+    private int[] lastProgress;
+    private final int LOGO_HEIGHT = 10;
 
     public ProgressBarManager(ConsoleTerminal terminal) {
         this.terminal = terminal;
         this.playerProgress = new int[getPlayerCount()];
+        this.lastProgress = new int[getPlayerCount()];
+        for(int i=0; i<getPlayerCount(); i++) lastProgress[i] = -1;
         this.isPlayerPressing = new boolean[getPlayerCount()];
         this.rankDisplay = new String[getPlayerCount()];
 
         // 초기화 시 화면 정리
         terminal.print("\033[2J\033[H\033[?25l");
-
+        for (int i = 0; i < 20; i++) terminal.println("");
+        terminal.print("\033[2J\033[H\033[?25l");
+        terminal.print(terminal.getLogo());
         startRenderThread();
     }
 
@@ -38,7 +45,7 @@ public class ProgressBarManager {
             while (isRunning.get()) {
                 try {
                     render();
-                    Thread.sleep(33); 
+                    Thread.sleep(100); 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -48,43 +55,26 @@ public class ProgressBarManager {
         renderThread.start();
     }
 
-    private void render() {
-        StringBuilder sb = new StringBuilder();
+    private synchronized void render() {
+        for (int i = 0; i < getPlayerCount(); i++) {
+            if (playerProgress[i] != lastProgress[i]) {
+                // 1. 해당 플레이어의 행 위치 계산 (로고 높이 + 여백 + 인덱스)
+                int row = LOGO_HEIGHT + i + (i >= getPlayerCount() / 2 ? 2 : 1); 
+                
+                // 2. ANSI 이스케이프 코드로 커서 점프: \033[행;열H
+                terminal.print("\033[" + row + ";1H"); 
 
-        // 1. 커서 홈으로 이동
-        sb.append("\u001B[H"); 
-
-        // [핵심 변경] ConsoleTerminal에 있는 로고를 가져와서 버퍼에 담음
-        sb.append(terminal.getLogo());
-
-        // 2. 플레이어 바 출력
-        synchronized (this) { 
-            for (int i = 0; i < getPlayerCount(); i++) {
-                String color;
-                if (isPlayerPressing[i]) {
-                    color = ColorCode.lime;
-                } else {
-                    color = isBlueTeam(i) ? ColorCode.blue : ColorCode.red;
-                }
-
-                String name = Main.playerNames.get(i);
-                int percent = playerProgress[i];
-                String bar = formatBar(name, percent, color);
+                // 3. 내용 출력 및 줄 끝 잔상 제거 (\u001B[K)
+                String color = isPlayerPressing[i] ? ColorCode.lime : (isBlueTeam(i) ? ColorCode.blue : ColorCode.red);
+                String bar = formatBar(Main.playerNames.get(i), playerProgress[i], color);
                 String rank = (rankDisplay[i] != null) ? rankDisplay[i] : "";
-
-                sb.append(bar).append(rank).append("\u001B[K\n");
-
-                if (i == (getPlayerCount() / 2) - 1) {
-                    sb.append(terminal.header + "\u001B[K\n"); 
-                }
+                
+                terminal.print(bar + rank + "\u001B[K");
+                
+                // 4. 현재 상태 기록
+                lastProgress[i] = playerProgress[i];
             }
         }
-
-        // 3. 화면 하단 잔상 제거
-        sb.append("\u001B[J");
-
-        // 4. 일괄 출력
-        terminal.print(sb.toString());
         terminal.flush();
     }
 
@@ -168,8 +158,7 @@ public class ProgressBarManager {
         } catch (InterruptedException e) { e.printStackTrace(); }
 
         render();
-
-        terminal.print("\033[?25h"); 
+        terminal.print("\033[20;1H\033[?25h");
         return isBlueTeamWin != null ? isBlueTeamWin : false;	// 승리팀 정보 리턴
     }
 }
