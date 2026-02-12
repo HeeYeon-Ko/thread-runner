@@ -55,28 +55,30 @@ public class ProgressBarManager {
         renderThread.start();
     }
 
-    private synchronized void render() {
-        for (int i = 0; i < getPlayerCount(); i++) {
-            if (playerProgress[i] != lastProgress[i]) {
-                // 1. 해당 플레이어의 행 위치 계산 (로고 높이 + 여백 + 인덱스)
-                int row = LOGO_HEIGHT + i + (i >= getPlayerCount() / 2 ? 2 : 1); 
-                
-                // 2. ANSI 이스케이프 코드로 커서 점프: \033[행;열H
-                terminal.print("\033[" + row + ";1H"); 
-
-                // 3. 내용 출력 및 줄 끝 잔상 제거 (\u001B[K)
-                String color = isPlayerPressing[i] ? ColorCode.lime : (isBlueTeam(i) ? ColorCode.blue : ColorCode.red);
-                String bar = formatBar(Main.playerNames.get(i), playerProgress[i], color);
-                String rank = (rankDisplay[i] != null) ? rankDisplay[i] : "";
-                
-                terminal.print(bar + rank + "\u001B[K");
-                
-                // 4. 현재 상태 기록
-                lastProgress[i] = playerProgress[i];
-            }
-        }
-        terminal.flush();
-    }
+	private void render() {
+	    for (int i = 0; i < getPlayerCount(); i++) {
+	        int currentProgress;
+	        boolean pressing;
+	        
+	        synchronized(this) {
+	            currentProgress = playerProgress[i];
+	            pressing = isPlayerPressing[i];
+	        }
+	
+	        if (currentProgress != lastProgress[i]) {
+	            int row = LOGO_HEIGHT + i + (i >= getPlayerCount() / 2 ? 2 : 1); 
+	            terminal.print("\033[" + row + ";1H"); 
+	
+	            String color = pressing ? ColorCode.lime : (isBlueTeam(i) ? ColorCode.blue : ColorCode.red);
+	            String bar = formatBar(Main.playerNames.get(i), currentProgress, color);
+	            String rank = (rankDisplay[i] != null) ? rankDisplay[i] : "";
+	            
+	            terminal.print(bar + rank + "\u001B[K");
+	            lastProgress[i] = currentProgress;
+	        }
+	    }
+	    terminal.flush();
+	}
 
     private String formatBar(String name, int percent, String color) {
         int width = 45; 
