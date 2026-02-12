@@ -56,10 +56,14 @@
 ### **진행 상태 시각화**
 - 진행 상태는 **진행률 바**로 시각화되며, 각 팀원의 상태와 순위가 실시간으로 표시됩니다.
 
+<br>
+  
 ### 렌더링 및 성능 최적화  
 - **독립적 구조**: 렌더링 스레드와 게임 로직을 분리해 메인 로직의 지연 없이 초당 10회의 화면 갱신을 수행합니다.  
 - **실시간 대시보드**: 공유 객체(playerProgress)에서 데이터를 읽어 실시간 진행도를 UI로 구축합니다.  
 - **선택적 업데이트**: ANSI 이스케이프 코드를 활용, 데이터가 변경된 특정 행만 수정하여 화면 깜빡임을 최소화했습니다.  
+
+<br>
 
 ### 렌더링 방식 전환 (Full Repaint -> Target Update)  
 - **기존 방식**: 갱신 시마다 로고와 8개 바 전체를 재출력하여 데이터 전송량이 많고 깜빡임이 심했습니다.  
@@ -69,18 +73,18 @@
 
 ## 실행 방법  
 ### 1. 클론 받기  
+```bash
 git clone https://github.com/HeeYeon-Ko/thread-runner.git  
-
+``` 
 ### 2. 빌드 및 실행  
-#### [방법 2] Windows / Eclipse 사용 시  
+#### [방법 1] Windows / Eclipse 사용 시  
 1. 프로젝트를 Eclipse로 Import 합니다 (Existing Maven Projects).  
 2. 프로젝트 우클릭 -> Export 선택.  
 3. Java -> Runnable JAR file 선택.  
 4. Launch configuration에서 'Main - thread_runner'를 선택하고 저장 경로를 지정하여 내보냅니다.  
 5. 생성된 .jar 파일을 더블 클릭하거나 `java -jar 파일명.jar`로 실행합니다.  
 
-#### [방법 1] Maven이 설치된 경우  
-# -q 옵션은 로그를 생략하고 게임 화면만 깨끗하게 출력합니다.
+#### [방법 2] Maven이 설치된 경우  
 ```bash
 mvn exec:java -Dexec.mainClass="thread_runner.Main" -q  
 ```
