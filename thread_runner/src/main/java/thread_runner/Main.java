@@ -7,20 +7,16 @@ public class Main {
 	
 	public static int playerCount = 8;
 	public static List<String> playerNames;
-	static String header = "[" + ColorCode.orange + "Thread " + ColorCode.green + "Runner" + ColorCode.reset + "] ";
 
 	public static void main(String[] args) throws IOException, InterruptedException {
 		ConsoleTerminal terminal = new ConsoleTerminal();
 		
 		terminal.printInit();
-//		int playerCount = terminal.selectPlayerCount();
-//		playerNames = terminal.getPlayerNames(playerCount);
 		playerNames = terminal.getPlayerNames();
 		
-//		ProgressBarManager manager = new ProgressBarManager(terminal, playerCount);
 		ProgressBarManager manager = new ProgressBarManager(terminal);
 		
-//		terminal.loading();
+		terminal.loading();
 		
 		Runnable[] tasks = createThreadTask(manager);
 		Thread[] players = new Thread[playerCount];
@@ -43,6 +39,7 @@ public class Main {
 	
 	private static Runnable[] createThreadTask(ProgressBarManager manager) {
 		Runnable[] tasks = new Runnable[playerCount];
+		int[] spotPercent = new int[] {20, 40, 60, 80};
 		
 		for (int i=0; i<playerCount; i++) {
 			int threadIndex = i; 
@@ -52,40 +49,39 @@ public class Main {
 				int progress = 0;
 				int goal = 100;
 				boolean[] isPassedSpot = new boolean[4];
-				int[] spotPercent = new int[] {20, 40, 60, 80};
 				
 				while (progress <= goal) {			
-					manager.update(threadIndex, progress, false);
+					manager.update(threadIndex, progress);
 					if (progress == goal) break;
 					
 					// [핵심] spot 지점 도달 시 팀원 기다리기
-			        if (progress >= spotPercent[0] && !isPassedSpot[0]) {
+			        if (progress == spotPercent[0] && !isPassedSpot[0]) {
 			            try {	            	
-			                manager.update(threadIndex, spotPercent[0], false); // 50% 지점에서 잠깐 멈춤을 시각적으로 보여줌
+			                manager.update(threadIndex, spotPercent[0]); // 20% 지점에서 잠깐 멈춤을 시각적으로 보여줌
 			                manager.waitForTeam(threadIndex, 0);
 			            	isPassedSpot[0] = true; 
 			            } catch (InterruptedException e) {
 			                Thread.currentThread().interrupt();
 			            }
-			        } else if (progress >= spotPercent[1] && !isPassedSpot[1]) {
+			        } else if (progress == spotPercent[1] && !isPassedSpot[1]) {
 			        	try {	            	
-			                manager.update(threadIndex, spotPercent[1], false); // 50% 지점에서 잠깐 멈춤을 시각적으로 보여줌
+			                manager.update(threadIndex, spotPercent[1]); // 40% 지점에서 잠깐 멈춤을 시각적으로 보여줌
 			                manager.waitForTeam(threadIndex, 1);
 			            	isPassedSpot[1] = true; 
 			            } catch (InterruptedException e) {
 			                Thread.currentThread().interrupt();
 			            }
-			        } else if (progress >= spotPercent[2] && !isPassedSpot[2]) {
+			        } else if (progress == spotPercent[2] && !isPassedSpot[2]) {
 			        	try {	            	
-			                manager.update(threadIndex, spotPercent[2], false); // 50% 지점에서 잠깐 멈춤을 시각적으로 보여줌
+			                manager.update(threadIndex, spotPercent[2]); // 60% 지점에서 잠깐 멈춤을 시각적으로 보여줌
 			                manager.waitForTeam(threadIndex, 2);
 			            	isPassedSpot[2] = true; 
 			            } catch (InterruptedException e) {
 			                Thread.currentThread().interrupt();
 			            }
-			        } else if (progress >= spotPercent[3] && !isPassedSpot[3]) {
+			        } else if (progress == spotPercent[3] && !isPassedSpot[3]) {
 			        	try {	            	
-			                manager.update(threadIndex, spotPercent[3], false); // 50% 지점에서 잠깐 멈춤을 시각적으로 보여줌
+			                manager.update(threadIndex, spotPercent[3]); // 80% 지점에서 잠깐 멈춤을 시각적으로 보여줌
 			                manager.waitForTeam(threadIndex, 3);
 			            	isPassedSpot[3] = true; 
 			            } catch (InterruptedException e) {
@@ -96,7 +92,7 @@ public class Main {
 					try { 
 						Thread.sleep((int)(Math.random() * 250)); 
 					} catch (InterruptedException e) {
-                	
+						e.printStackTrace();
 					}
 					progress += getNextStep();
 					if (progress < 0)

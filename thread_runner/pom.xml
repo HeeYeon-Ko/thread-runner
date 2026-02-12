@@ -3,18 +3,4 @@
 	<groupId>dev</groupId>
 	<artifactId>thread_runner</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<dependencies>
-		<!-- 플레이어 인원 선택창 지원 라이브러리 -->
-		<dependency>
-			<groupId>org.jline</groupId>
-			<artifactId>jline</artifactId>
-			<version>3.21.0</version>
-		</dependency>
-		<!-- 윈도우에서 jLine 라이브러리를 쓰기 위한 라이브러리 -->
-		<dependency>
-			<groupId>org.fusesource.jansi</groupId>
-			<artifactId>jansi</artifactId>
-			<version>2.4.0</version>
-		</dependency>
-	</dependencies>
 </project>

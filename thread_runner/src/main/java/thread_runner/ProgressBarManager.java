@@ -6,21 +6,17 @@ public class ProgressBarManager {
 	
 	// 플레이어 정보 관련 변수
 	private int[] playerProgress;
-	private boolean[] isPlayerWaiting; 	// 플레이어별 대기 상태 저장
+	private boolean[] isPlayerPressing; 	// 플레이어별 대기 상태 저장
 	private int rankCounter = 1; 		// 순위 카운터
 	private String rankResult = ""; 	// 순위 결과 출력문 저장용
 	
 	// 레드팀 관련 변수
-	private int[] redTeamAtMid = {1,2,3,4};
-//	private final Object[] redTeamLock = new Object[4];
+	private int[] redTeamAtSpot = {1,2,3,4};
 	private final Object redTeamLock = new Object();
-	private boolean redTeamWait = false;
 
 	// 블루팀 관련 변수
-	private int[] blueTeamAtMid = {1,2,3,4};	
+	private int[] blueTeamAtSpot = {1,2,3,4};	
 	private final Object blueTeamLock = new Object();
-//	private final Object[] blueTeamLock = new Object[4];
-	private boolean blueTeamWait = false;
 
 	// 최종 승리팀
 	private Boolean isBlueTeamWin = null;
@@ -29,29 +25,29 @@ public class ProgressBarManager {
 	public ProgressBarManager(ConsoleTerminal terminal) {
 		this.terminal = terminal;
 		playerProgress = new int[getPlayerCount()];
-		isPlayerWaiting = new boolean[getPlayerCount()];
-		
-//		for (int i=0; i<4; i++) {
-//			redTeamLock[i] = new Object();
-//			blueTeamLock[i] = new Object();
-//		}
+		isPlayerPressing = new boolean[getPlayerCount()];
+	}
+	
+	public void update(int playerIndex, int percent) {
+		update(playerIndex, percent, false);
 	}
 
-	public synchronized void update(int playerIndex, int percent, boolean isBlocked) {
+	public synchronized void update(int playerIndex, int percent, boolean isPressing) {
+		
+		// 1등으로 도착한 팀이 어느 팀인지 결정하는 if문
 		if (playerProgress[playerIndex] != 0 && percent == 100) {
-			if (isBlueTeamWin == null && isBlueTeam(playerIndex)) {
-				isBlueTeamWin = true;
-			} else if (isBlueTeamWin == null && !isBlueTeam(playerIndex)) {
-				isBlueTeamWin = false;
+			if (isBlueTeamWin == null) {	// 아무도 도착한 사람이 없다면, 내가 속한 팀이 우승
+				isBlueTeamWin = isBlueTeam(playerIndex);
 			}
 		}
+		
 		playerProgress[playerIndex] = percent;
-		isPlayerWaiting[playerIndex] = isBlocked;
+		isPlayerPressing[playerIndex] = isPressing;
 		render();
 	}
 
 	private boolean isBlueTeam(int playerIndex) {
-		return playerIndex*2 < getPlayerCount();
+		return playerIndex < getPlayerCount() / 2;
 	}
 
 	// 작업 완료 시 호출되는 메서드
@@ -68,7 +64,7 @@ public class ProgressBarManager {
 		String[] playerBar = new String[getPlayerCount()];
 		for (int i = 0; i < playerBar.length; i++) {
 			String color = i*2 >= playerBar.length ? ColorCode.red : ColorCode.blue;
-			if (isPlayerWaiting[i]) {
+			if (isPlayerPressing[i]) {
 				color = ColorCode.lime;	// 대기지점에서 대기중이면 라임색
 			}
 			if (i == 3)
@@ -114,15 +110,10 @@ public class ProgressBarManager {
 		return sb.toString();
 	}
 	
-//	public boolean isWaiting(int threadIndex, int spot) {
-//		boolean isBlueTeam = isBlueTeam(threadIndex);
-//		return isBlueTeam ? blueTeamWait : redTeamWait;
-//	}
-	
 	public void waitForTeam(int threadIndex, int spot) throws InterruptedException {
 		boolean isBlue = isBlueTeam(threadIndex);
 	    Object lock = isBlue ? blueTeamLock : redTeamLock;
-	    int[] waitCount = isBlue ? blueTeamAtMid : redTeamAtMid;
+	    int[] waitCount = isBlue ? blueTeamAtSpot : redTeamAtSpot;
 
 	    synchronized (lock) {
 	        waitCount[spot]--; // 내가 도착했으므로 카운트 감소
@@ -138,8 +129,6 @@ public class ProgressBarManager {
 	            // 문 열리는 시간 2초 대기
 	            Thread.sleep(2000);
 	            lock.notifyAll(); // 대기하던 팀원들 깨우기
-	        } else {
-	        	lock.notifyAll();
 	        }
 	    }
 	}
